@@ -307,10 +307,10 @@ class Communism(plugins.Plugin):
 
     def send(message):
         logging.info("placeholder")
-
+# TODO: Create working send function to send between peers
     def listen():
         logging.info("placeholder")
-
+#TODO: Create working listen function to wait for the most recent message sent from peer
 
 
     def assign(self, max_retries=5):
@@ -362,12 +362,6 @@ class Communism(plugins.Plugin):
     # called when everything is ready and the main loop is about to start
     def on_ready(self, agent):
         logging.info("unit is ready")
-        _disable_monitor_mode(self, agent)
-        self.assign()
-        if True:
-            logging.info("HOST FTP SERVER")
-            self.ui.update(force=True, new_data={'status': f'Hosting the FTP server, N/A is responsible for transferring files...', 'face': '(•‿•)🍺'})
-
 
     # called when a new peer is detected
     def on_peer_detected(self, agent, peer):
@@ -400,4 +394,5 @@ class Communism(plugins.Plugin):
         #shutdown FTP server here
         self.ui.update(force=True, new_data={'status': f'We lost {peer} to The Reds!'})
         pass
+
 
