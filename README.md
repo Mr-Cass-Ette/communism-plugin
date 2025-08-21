@@ -1,8 +1,8 @@
 In order to run, please run the following command
 ```sudo pip install pyftpdlib --break-system-packages```
 also, run this command:
-```sudo mkdir /etc/hostapd/
-sudo nano /etc/hostapd/hostapd.conf```
+```sudo mkdir /etc/hostapd/```
+```sudo nano /etc/hostapd/hostapd.conf```
 
 And paste the following contents inside:
 
