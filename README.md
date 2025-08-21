@@ -1,4 +1,6 @@
-In order to run, please run the following command
+In order to run, please run the following commands
+```sudo apt update```
+```sudo apt install hostapd dnsmasq```
 ```sudo pip install pyftpdlib --break-system-packages```
 also, run this command:
 ```sudo mkdir /etc/hostapd/```
