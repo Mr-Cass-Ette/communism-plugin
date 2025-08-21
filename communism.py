@@ -3,6 +3,7 @@ import pwnagotchi.plugins as plugins
 from pwnagotchi.ui.components import LabeledValue
 from pwnagotchi.ui.view import BLACK
 import pwnagotchi.ui.fonts as fonts
+from pwnagotchi.ai.epoch import Epoch
 import os
 import shutil
 import subprocess
@@ -127,9 +128,8 @@ dhcp-range=192.168.4.2,192.168.4.20,255.255.255.0,24h
             f.write(dnsmasq_conf)
 
         subprocess.run(["sudo", "ifconfig", interface, "192.168.4.1"], check=True)
-        subprocess.run(["sudo", "systemctl", "restart", "hostapd"], check=True)
+        #subprocess.run(["sudo", "systemctl", "restart", "hostapd"], check=True)
         subprocess.run(["sudo", "systemctl", "restart", "dnsmasq"], check=True)
-
         _log(f"Hotspot {ssid} active. Password: {password}")
         _log("Pi reachable at 192.168.4.1")
 
@@ -251,49 +251,6 @@ def _sync_via_FTP(mode=mode, ssid="Dealbreaker", password="PTWwohrnled!",
     except Exception as e:
         _log(f"⚠️ Could not disconnect Wi-Fi: {e}")
 
-def _disable_monitor_mode(self, agent):
-    _log('sending command to Bettercap to stop using mon0...')
-    self.status = 'switching_mon_off'
-    agent.run('wifi.recon off')
-    _log('ensuring all wpa_supplicant processes are terminated...')
-    subprocess.run('systemctl stop wpa_supplicant; killall wpa_supplicant', shell=True, stdin=None, stdout=open("/dev/null", "w"), stderr=None, executable="/bin/bash")
-    time.sleep(5)
-    _log('disabling monitor mode...')
-    subprocess.run('modprobe --remove brcmfmac; modprobe brcmfmac', shell=True, stdin=None, stdout=open("/dev/null", "w"), stderr=None, executable="/bin/bash")
-    time.sleep(5)
-    # Runs this driver reload command again because sometimes it gets stuck the first time:
-    subprocess.run('modprobe --remove brcmfmac; modprobe brcmfmac', shell=True, stdin=None, stdout=open("/dev/null", "w"), stderr=None, executable="/bin/bash")
-    time.sleep(5)
-    _log('randomizing wlan0 MAC address prior to connecting...')
-    self.status = 'scrambling_mac'
-    subprocess.run('macchanger -A wlan0', shell=True, stdin=None, stdout=open("/dev/null", "w"), stderr=None, executable="/bin/bash")
-    time.sleep(5)
-    _log('starting up wlan0 again...')
-    subprocess.run('ifconfig wlan0 up', shell=True, stdin=None, stdout=open("/dev/null", "w"), stderr=None, executable="/bin/bash")
-    time.sleep(3)
-    # This command runs multiple times because it sometimes doesn't work the first time:
-    subprocess.run('ifconfig wlan0 up', shell=True, stdin=None, stdout=open("/dev/null", "w"), stderr=None, executable="/bin/bash")
-    time.sleep(5)
- 
-def _restart_monitor_mode(self,agent):
-    _log('resuming wifi recon and monitor mode...')
-    _log('stopping wpa_supplicant...')
-    subprocess.run('systemctl stop wpa_supplicant; killall wpa_supplicant', shell=True, stdin=None, stdout=open("/dev/null", "w"), stderr=None, executable="/bin/bash")
-    time.sleep(5)
-    _log('reloading brcmfmac driver...')
-    subprocess.run('modprobe --remove brcmfmac && modprobe brcmfmac', shell=True, stdin=None, stdout=open("/dev/null", "w"), stderr=None, executable="/bin/bash")
-    time.sleep(5)
-    _log('randomizing MAC address of wlan0...')
-    subprocess.run('macchanger -A wlan0', shell=True, stdin=None, stdout=open("/dev/null", "w"), stderr=None, executable="/bin/bash")
-    time.sleep(5)
-    subprocess.run('ifconfig wlan0 up', shell=True, stdin=None, stdout=open("/dev/null", "w"), stderr=None, executable="/bin/bash")
-    _log('starting monitor mode...')
-    subprocess.run('iw phy "$(iw phy | head -1 | cut -d" " -f2)" interface add mon0 type monitor && ifconfig mon0 up', shell=True, stdin=None, stdout=open("/dev/null", "w"), stderr=None, executable="/bin/bash")
-    _log('telling Bettercap to resume wifi recon...')
-    agent.run('wifi.recon on')
-    agent.next_epoch(self)
-
-
 def _hijack(self, agent):
         """override the necessary functions to make pwnagotchi stop pwning for a while"""
         try:
@@ -358,6 +315,7 @@ def _hijack(self, agent):
                 # pause recon in bettercap
                 r = agent.run('wifi.recon off')
                 logging.info("Wifi recon off: %s" % (r))
+                subprocess.run(["sudo", "ifconfig", "wlan0", "up"], check=True)
             except Exception as e:
                 logging.error("Disabling recon: %s" % (e))
         except Exception as e:
@@ -466,7 +424,7 @@ class Communism(plugins.Plugin):
 
     # called when everything is ready and the main loop is about to start
     def on_ready(self, agent):
-        logging.info("unit is ready")
+        _log("unit is ready")
 
     # called when a new peer is detected
     def on_peer_detected(self, agent, peer):
@@ -491,7 +449,7 @@ class Communism(plugins.Plugin):
                 logging.info("Peer returned an invalid number status. canceling FTP transfer.")
         
             failsafe(name=peer, mode="write")
-            _un_hijack()
+            _un_hijack(self, agent)
             #self.ui.update(force=True, new_data={'status': f'Pleasure doing FTP with you, {peer}.', 'face': '🍺(♥‿♥)'})
         #pass
 
