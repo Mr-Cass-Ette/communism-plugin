@@ -293,6 +293,111 @@ def _restart_monitor_mode(self,agent):
     agent.run('wifi.recon on')
     agent.next_epoch(self)
 
+
+def _hijack(self, agent):
+        """override the necessary functions to make pwnagotchi stop pwning for a while"""
+        try:
+
+            # this is the replacement function
+            def hj_observe(self, aps, peers):
+                """ Epoch.observe() sets the blind_for and inactive_for, which trigger
+                    actions that should be avoided while recon is disabled
+                    Override Epoch.observe() with hj_observe, which calls the original,
+                    then sets those stats to be 0.  Also sets num_missed so is_stale()
+                    will be true and attacks get skipped."""
+                logging.debug("HJ observe: %s, %s, %s" % (self, len(aps), len(peers)))
+                try:
+                    if hasattr(self, 'hj_funcs'):   # if this object has been hijacked
+                        o_func = self.hj_funcs.get('observe', None)  # get original function from dictionary
+                        if o_func:
+                            o_func(aps, peers)    # call real observe function, pwnagotchi.ai.epoch.observe()
+                        # override some of the stats
+                        if self.blind_for > 0:
+                            logging.warn("Resetting blind count from %d" % (self.blind_for))
+                            self.blind_for = 0
+                        if self.inactive_for > 0:
+                            logging.warn("Resetting inactive count from %d" % (self.inactive_for))
+                            self.inactive_for = 0
+                        if self.sad_for > 0:
+                            logging.warn("Resetting sad count from %d" % (self.sad_for))
+                            self.sad_for = 0
+                        if self.bored_for > 0:
+                            logging.warn("Resetting bored count from %d" % (self.bored_for))
+                            self.bored_for = 0
+                        # set high enough to be stale, so attacks get skipped
+                        self.num_missed = self.config['personality']['max_misses_for_recon'] + 1
+                    else:
+                        logging.error("ep has no orig_observe: %s" % (repr(self)))
+                except Exception as e:
+                    logging.exception(e)
+
+            # and this is how it gets installed:
+            ep = agent._epoch
+            if ep:
+
+                # add a dictionary to the object, to keep track of original functions
+                # so they can be restored in on_unload
+                if hasattr(ep, 'hj_funcs'):
+                    logging.error("Already hijacked. wtf?")
+                else:
+                    ep.hj_funcs = {}
+
+                # save the origional. Do not overwrite if one is already saved (since that's the OG original)
+                if not 'observe' in ep.hj_funcs:
+                    ep.hj_funcs['observe'] = ep.observe
+
+                # override the Epoch.observe function with hj_observe
+                ep.observe = hj_observe.__get__(ep, Epoch)
+                logging.info("Hijacked recon functions %s" % (ep.hj_funcs))
+
+            # finally disable attacks and switch off bettercap recon
+            try:
+                # set num_missed to avoid attacks
+                ep.num_missed = ep.config['personality']['max_misses_for_recon'] + 1
+
+                # pause recon in bettercap
+                r = agent.run('wifi.recon off')
+                logging.info("Wifi recon off: %s" % (r))
+            except Exception as e:
+                logging.error("Disabling recon: %s" % (e))
+        except Exception as e:
+            logging.exception(e)
+
+def _un_hijack(self, agent):
+        """ restore original functions and operation """
+        try:
+            if not agent:
+                logging.info("No agent")
+                return
+            ep = agent._epoch
+            
+            logging.info("Unjacking %s" % (ep))
+            if hasattr(ep, 'hj_funcs'):
+                # restore the observe function
+                ep.observe = ep.hj_funcs['observe']
+                if ep.observe == ep.hj_funcs['observe']:    # verify that it was restored
+                    logging.info("Restored Epoch.observe")
+                    del ep.hj_funcs['observe']
+                else:
+                    logging.error("Failed to restore observe function")
+
+                # leave no trace
+                del ep.hj_funcs
+            else:
+                logging.error("\t\t\tNothing to unjack")
+
+            try:
+                ep.num_missed = 0   # set to 0, so attacks activate again
+
+                # restart wifi.recon in bettercap
+                r = agent.run('wifi.recon on')
+                logging.info("Wifi recon on: %s" % (r))
+            except Exception as e:
+                logging.error("Enabling recon: %s" % (e))
+        except Exception as e:
+            logging.exception(e)
+
+
 def _log(message):
     logging.info('[Communism] %s' % message)
 
@@ -366,27 +471,28 @@ class Communism(plugins.Plugin):
     # called when a new peer is detected
     def on_peer_detected(self, agent, peer):
         #insert ftp setup here
-        self.ui.update(force=True, new_data={'status': f'Found a fellow Commie! Communicating FTP protocal...', 'face': '(•‿‿•)'}) # (# of handshakes sent / # of total handshakes)
+        #self.ui.update(force=True, new_data={'status': f'Found a fellow Commie! Communicating FTP protocal...', 'face': '(•‿‿•)'}) # (# of handshakes sent / # of total handshakes)
         if failsafe(name=peer, mode="check"):
-            self.ui.update(force=False, new_data={'status': f'We already talked today, {peer}...', 'face': f"(-_-')"})
+            _log("Already connected to peer")
+            #self.ui.update(force=False, new_data={'status': f'We already talked today, {peer}...', 'face': f"(-_-')"})
         else:
-            _disable_monitor_mode(self, agent)
+            _hijack(self, agent)
             self.assign()
             if self.action_number == 0:
                 logging.info("HOST FTP SERVER")
-                self.ui.update(force=True, new_data={'status': f'Hosting the FTP server, {peer} is responsible for transferring files...', 'face': '(•‿•)🍺'})
+                #self.ui.update(force=True, new_data={'status': f'Hosting the FTP server, {peer} is responsible for transferring files...', 'face': '(•‿•)🍺'})
                 _host_ftp()
             elif self.action_number == 1:
                 logging.info("CONNECT TO FTP & MOVE FILES")
-                self.ui.update(force=True, new_data={'status': f'Connecting to FTP server, {peer} is responsible for hosting...', 'face': '🍺(•‿•)'})
+                #self.ui.update(force=True, new_data={'status': f'Connecting to FTP server, {peer} is responsible for hosting...', 'face': '🍺(•‿•)'})
                 _sync_via_FTP()
             else:
-                self.ui.update(force=True, new_data={'status': f'We lost {peer} to The Reds! (No Communism Plugin)'})
+                #self.ui.update(force=True, new_data={'status': f'We lost {peer} to The Reds! (No Communism Plugin)'})
                 logging.info("Peer returned an invalid number status. canceling FTP transfer.")
         
             failsafe(name=peer, mode="write")
-            _restart_monitor_mode()
-            self.ui.update(force=True, new_data={'status': f'Pleasure doing FTP with you, {peer}.', 'face': '🍺(♥‿♥)'})
+            _un_hijack()
+            #self.ui.update(force=True, new_data={'status': f'Pleasure doing FTP with you, {peer}.', 'face': '🍺(♥‿♥)'})
         #pass
 
     # called when a known peer is lost
@@ -394,5 +500,6 @@ class Communism(plugins.Plugin):
         #shutdown FTP server here
         self.ui.update(force=True, new_data={'status': f'We lost {peer} to The Reds!'})
         pass
+
 
 
