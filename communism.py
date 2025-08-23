@@ -1,3 +1,13 @@
+# Disclaimer
+# **Note:** This plugin is created for educational purposes
+# The author does not take responsibility for any misuse or unauthorized activities conducted with this plugin.
+# Be aware of and comply with legal and ethical standards when using this software.
+# Always respect privacy, adhere to local laws, and ensure that your actions align with the intended educational purpose of the plugin.
+# Use this plugin responsibly and ethically.
+# Any actions that violate laws or infringe upon the rights of others are not endorsed or supported.
+# By using this software, you acknowledge that the author is not liable for any consequences resulting from its misuse.
+# If you have any concerns or questions regarding the ethical use of this plugin, please contact the author for guidance.
+
 import logging
 import pwnagotchi.plugins as plugins
 from pwnagotchi.ui.components import LabeledValue
@@ -458,6 +468,7 @@ class Communism(plugins.Plugin):
         #shutdown FTP server here
         self.ui.update(force=True, new_data={'status': f'We lost {peer} to The Reds!'})
         pass
+
 
 
 
